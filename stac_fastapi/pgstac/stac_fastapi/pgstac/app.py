@@ -9,6 +9,7 @@ from stac_fastapi.extensions.core import (
     SortExtension,
     TokenPaginationExtension,
     TransactionExtension,
+    FilterExtension
 )
 from stac_fastapi.extensions.third_party import BulkTransactionExtension
 from stac_fastapi.pgstac.config import Settings
@@ -31,11 +32,14 @@ extensions = [
     TokenPaginationExtension(),
     ContextExtension(),
     BulkTransactionExtension(client=BulkTransactionsClient()),
+    FilterExtension()
 ]
 
 post_request_model = create_post_request_model(extensions, base_model=PgstacSearch)
 
 api = StacApi(
+    title='The Geoplatform.gov STAC API',
+    description='Searchable spatiotemporal metadata hosted by Geoplatform.gov',
     settings=settings,
     extensions=extensions,
     client=CoreCrudClient(post_request_model=post_request_model),
