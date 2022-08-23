@@ -18,6 +18,7 @@ from stac_fastapi.pgstac.db import close_db_connection, connect_to_db
 from stac_fastapi.pgstac.extensions import QueryExtension
 from stac_fastapi.pgstac.transactions import BulkTransactionsClient, TransactionsClient
 from stac_fastapi.pgstac.types.search import PgstacSearch
+from stac_fastapi.pgstac.gp_utils import route_dependencies
 
 settings = Settings()
 extensions = [
@@ -46,6 +47,7 @@ api = StacApi(
     response_class=ORJSONResponse,
     search_get_request_model=create_get_request_model(extensions),
     search_post_request_model=post_request_model,
+    route_dependencies=route_dependencies
 )
 app = api.app
 
