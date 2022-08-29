@@ -6,8 +6,22 @@ The deployed version of STAC FastAPI uses the `pgstac` backend.
 This image is built to support the [stacapi](https://github.com/GeoPlatform/GeoPlatform/tree/develop/infrastructure/stac-api) stack. 
 
 ## Local Development
+1. review the `docker-compose.gp.yml` and rename `sample.env` to `.env`
 
-Use docker to build the container and push to SIT
+    > This compose file also contains the service for [importing stac](https://github.com/GeoPlatform/GeoPlatform/tree/develop/infrastructure/stac-import) collections and items. Optionally uncomment this service. 
+
+2. Start application with:
+    ```sh
+    docker-compose -f docker-compose.gp.yml up -d
+    ```
+3. Stop application with:
+    ```sh
+    docker-compose -f docker-compose.gp.yml down
+    ```
+
+## ECR Deployment
+
+Use docker to build the stac-api container and push to SIT
 
 1. clone & checkout develop
     ```sh
