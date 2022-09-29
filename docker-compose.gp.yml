@@ -20,15 +20,6 @@ services:
     command:
       bash -c "./scripts/wait-for-it.sh database:5432 && pypgstac migrate && python -m stac_fastapi.pgstac.app"
 
-  # app-stac-importer:
-  #   container_name: stac-fastapi-import
-  #   image: 998343784597.dkr.ecr.us-east-1.amazonaws.com/sit-stac-import:latest
-  #   platform: linux/amd64
-  #   env_file:
-  #     - .env
-  #   depends_on:
-  #     - database
-
   database:
     container_name: stac-db
     image: postgis/postgis:14-master
@@ -38,4 +29,9 @@ services:
       - POSTGRES_DB=postgis
     ports:
       - "5439:5432"
+    volumes:
+      - stac_pgdata:/var/lib/postgresql/data
     command: postgres -N 500
+
+volumes:
+  stac_pgdata:
