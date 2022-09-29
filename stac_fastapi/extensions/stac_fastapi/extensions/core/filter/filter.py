@@ -66,7 +66,7 @@ class FilterExtension(ApiExtension):
     POST = FilterExtensionPostRequest
 
     client: Union[AsyncBaseFiltersClient, BaseFiltersClient] = attr.ib(
-        factory=BaseFiltersClient
+        factory=AsyncBaseFiltersClient
     )
     conformance_classes: List[str] = attr.ib(
         default=[
