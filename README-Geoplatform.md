@@ -47,3 +47,7 @@ Use docker to build the stac-api container and push to SIT
 
     docker push 998343784597.dkr.ecr.us-east-1.amazonaws.com/sit-stac-fastapi:latest
     ```
+6. Restart the ECS Service Tasks in SIT to deploy:
+    ```sh
+    aws ecs update-service --force-new-deployment --cluster sit-vpc-ECSCluster-OSV5bONITro4 --service sit-stacapi
+    ```
