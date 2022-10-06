@@ -6,16 +6,17 @@ from stac_fastapi.api.models import create_get_request_model, create_post_reques
 from stac_fastapi.extensions.core import (
     ContextExtension,
     FieldsExtension,
+    FilterExtension,
     SortExtension,
     TokenPaginationExtension,
     TransactionExtension,
-    FilterExtension
 )
 from stac_fastapi.extensions.third_party import BulkTransactionExtension
 from stac_fastapi.pgstac.config import Settings
 from stac_fastapi.pgstac.core import CoreCrudClient
 from stac_fastapi.pgstac.db import close_db_connection, connect_to_db
 from stac_fastapi.pgstac.extensions import QueryExtension
+from stac_fastapi.pgstac.extensions.filter import FiltersClient
 from stac_fastapi.pgstac.transactions import BulkTransactionsClient, TransactionsClient
 from stac_fastapi.pgstac.types.search import PgstacSearch
 from stac_fastapi.pgstac.gp_utils import route_dependencies
@@ -32,15 +33,13 @@ extensions = [
     FieldsExtension(),
     TokenPaginationExtension(),
     ContextExtension(),
+    FilterExtension(client=FiltersClient()),
     BulkTransactionExtension(client=BulkTransactionsClient()),
-    FilterExtension()
 ]
 
 post_request_model = create_post_request_model(extensions, base_model=PgstacSearch)
 
 api = StacApi(
-    title='The Geoplatform.gov STAC API',
-    description='Searchable spatiotemporal metadata hosted by Geoplatform.gov',
     settings=settings,
     extensions=extensions,
     client=CoreCrudClient(post_request_model=post_request_model),
