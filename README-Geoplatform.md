@@ -19,35 +19,23 @@ This image is built to support the [stacapi](https://github.com/GeoPlatform/GeoP
     docker-compose -f docker-compose.gp.yml down
     ```
 
-## ECR Deployment
+## ECR/ECS Deployment
 
 Use docker to build the stac-api container and push to SIT
 
-1. clone & checkout develop
-    ```sh
-    git clone https://github.com/GeoPlatform/stac-fastapi.git
-
-    git checkout develop
-    ```
-2. build locally
-    ```sh
-    docker build -t sit-stac-fastapi .
-    ```
-3. tag container
-    ```sh
-    docker tag sit-stac-fastapi 998343784597.dkr.ecr.us-east-1.amazonaws.com/sit-stac-fastapi:latest
-    ```
-4. create ECR repository (one time only)
+1. create ECR repository (one time only)
     ```sh
     aws ecr create-repository --repository-name sit-stac-fastapi
     ```
-5. login and push container to ECR
+2. Run 
     ```sh
-    aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 998343784597.dkr.ecr.us-east-1.amazonaws.com 
+    sh build-push-deploy.sh
+    ```
+   This will also restart the ECS task as a last step which will deploy the new image. 
 
-    docker push 998343784597.dkr.ecr.us-east-1.amazonaws.com/sit-stac-fastapi:latest
-    ```
-6. Restart the ECS Service Tasks in SIT to deploy:
-    ```sh
-    aws ecs update-service --force-new-deployment --cluster sit-vpc-ECSCluster-OSV5bONITro4 --service sit-stacapi
-    ```
+## Bulk Loading Data
+A sample ndjson collection and items are in the /data directory. To bulk load these, run:
+
+```sh
+docker-compose -f docker-compose.gp.yml exec stac sh /data/bulk_load_all.sh
+```
