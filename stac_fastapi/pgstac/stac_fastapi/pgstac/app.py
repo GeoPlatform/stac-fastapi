@@ -1,5 +1,6 @@
 """FastAPI application using PGStac."""
 from fastapi.responses import ORJSONResponse
+from fastapi.middleware.cors import CORSMiddleware
 
 from stac_fastapi.api.app import StacApi
 from stac_fastapi.api.models import create_get_request_model, create_post_request_model
@@ -50,6 +51,12 @@ api = StacApi(
 )
 app = api.app
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_credentials=True
+)
 
 @app.on_event("startup")
 async def startup_event():
