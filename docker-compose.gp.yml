@@ -6,7 +6,7 @@ services:
     # image: 998343784597.dkr.ecr.us-east-1.amazonaws.com/sit-stac-fastapi:latest
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: docker/Dockerfile
     platform: linux/amd64
     env_file:
       - .env
