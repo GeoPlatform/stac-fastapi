@@ -1,3 +1,5 @@
+<!-- markdownlint-disable MD033 MD041 -->
+
 <p align="center">
   <img src="https://github.com/radiantearth/stac-site/raw/master/images/logo/stac-030-long.png" width=400>
   <p align="center">FastAPI implemention of the STAC API spec.</p>
@@ -9,7 +11,7 @@
   <a href="https://pypi.org/project/stac-fastapi" target="_blank">
       <img src="https://img.shields.io/pypi/v/stac-fastapi.api?color=%2334D058&label=pypi%20package" alt="Package version">
   </a>
-  <a href="https://github.com/stac-utils/stac-fastapi/blob/master/LICENSE" target="_blank">
+  <a href="https://github.com/stac-utils/stac-fastapi/blob/main/LICENSE" target="_blank">
       <img src="https://img.shields.io/github/license/stac-utils/stac-fastapi.svg" alt="License">
   </a>
 </p>
@@ -30,6 +32,7 @@ packages:
 - **stac_fastapi.types**: Shared types and abstract base classes used by the library.
 
 #### Backends
+
 - **stac_fastapi.sqlalchemy**: Postgres backend implementation with sqlalchemy.
 - **stac_fastapi.pgstac**: Postgres backend implementation with [PGStac](https://github.com/stac-utils/pgstac).
 
@@ -61,9 +64,25 @@ pip install -e stac_fastapi/sqlalchemy
 pip install -e stac_fastapi/pgstac
 ```
 
+### Pre-built Docker images
+
+Pre-built images are available from the [Github Container Registry](https://github.com/stac-utils/stac-fastapi/pkgs/container/stac-fastapi).
+The latest images are tagged with `main-pgstac` and `main-sqlalchemy`.
+To pull the image to your local system:
+
+```shell
+docker pull ghcr.io/stac-utils/stac-fastapi:main-pgstac  # or main-sqlalchemy
+```
+
+This repository provides two example [Docker compose](https://docs.docker.com/compose/) files that demonstrate how you might link the pre-built images with a postgres/pgstac database:
+
+- [docker-compose.pgstac.yml](./docker/docker-compose.pgstac.yml)
+- [docker-compose.sqlalchemy.yml](./docker/docker-compose.sqlalchemy.yml)
+
 ## Local Development
 
 Use docker-compose via make to start the application, migrate the database, and ingest some example data:
+
 ```bash
 make image
 make docker-run-all
@@ -84,7 +103,23 @@ The application will be started on <http://localhost:8080>.
 By default, the apps are run with uvicorn hot-reloading enabled. This can be turned off by changing the value
 of the `RELOAD` env var in docker-compose.yml to `false`.
 
-#### Note to Docker for Windows users
+### nginx proxy
+
+This repo includes an example nginx proxy service.
+To start:
+
+```shell
+make docker-run-nginx-proxy
+```
+
+The proxy will be started on <http://localhost>, with the pgstac app available at <http://localhost/api/v1/pgstac/> and the sqlalchemy app at <http://localhost/api/v1/sqlalchemy/>.
+If you need to customize the proxy port, use the `STAC_FASTAPI_NGINX_PORT` environment variable:
+
+```shell
+STAC_FASTAPI_NGINX_PORT=7822 make docker-run-nginx-proxy
+```
+
+### Note to Docker for Windows users
 
 You'll need to enable experimental features on Docker for Windows in order to run the docker-compose,
 due to the "--platform" flag that is required to allow the project to run on some Apple architectures.

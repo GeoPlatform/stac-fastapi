@@ -1,4 +1,7 @@
 from datetime import datetime, timedelta
+from urllib.parse import quote_plus
+
+import orjson
 
 from ..conftest import MockStarletteRequest
 
@@ -48,6 +51,13 @@ def test_core_router(api_client):
         [f"{list(route.methods)[0]} {route.path}" for route in api_client.app.routes]
     )
     assert not core_routes - api_routes
+
+
+def test_landing_page_stac_extensions(app_client):
+    resp = app_client.get("/")
+    assert resp.status_code == 200
+    resp_json = resp.json()
+    assert not resp_json["stac_extensions"]
 
 
 def test_transactions_router(api_client):
@@ -150,6 +160,12 @@ def test_app_query_extension_gt(load_test_data, app_client, postgres_transaction
     resp_json = resp.json()
     assert len(resp_json["features"]) == 0
 
+    params["query"] = quote_plus(orjson.dumps(params["query"]))
+    resp = app_client.get("/search", params=params)
+    assert resp.status_code == 200
+    resp_json = resp.json()
+    assert len(resp_json["features"]) == 0
+
 
 def test_app_query_extension_gte(load_test_data, app_client, postgres_transactions):
     test_item = load_test_data("test_item.json")
@@ -193,7 +209,7 @@ def test_app_query_extension_limit_gt10000(
 
     params = {"limit": 10001}
     resp = app_client.post("/search", json=params)
-    assert resp.status_code == 400
+    assert resp.status_code == 200
 
 
 def test_app_query_extension_limit_10000(
@@ -260,6 +276,16 @@ def test_search_point_intersects(load_test_data, app_client, postgres_transactio
         item["collection"], item, request=MockStarletteRequest
     )
 
+    new_coordinates = list()
+    for coordinate in item["geometry"]["coordinates"][0]:
+        new_coordinates.append([coordinate[0] * -1, coordinate[1] * -1])
+    item["id"] = "test-item-other-hemispheres"
+    item["geometry"]["coordinates"] = [new_coordinates]
+    item["bbox"] = list(value * -1 for value in item["bbox"])
+    postgres_transactions.create_item(
+        item["collection"], item, request=MockStarletteRequest
+    )
+
     point = [150.04, -33.14]
     intersects = {"type": "Point", "coordinates": point}
 
@@ -268,6 +294,12 @@ def test_search_point_intersects(load_test_data, app_client, postgres_transactio
         "collections": [item["collection"]],
     }
     resp = app_client.post("/search", json=params)
+    assert resp.status_code == 200
+    resp_json = resp.json()
+    assert len(resp_json["features"]) == 1
+
+    params["intersects"] = orjson.dumps(params["intersects"]).decode("utf-8")
+    resp = app_client.get("/search", params=params)
     assert resp.status_code == 200
     resp_json = resp.json()
     assert len(resp_json["features"]) == 1
@@ -434,3 +466,64 @@ def test_app_search_response_duplicate_forwarded_headers(
     for feature in resp.json()["features"]:
         for link in feature["links"]:
             assert link["href"].startswith("https://testserver:1234/")
+
+
+def test_get_features_content_type(app_client, load_test_data):
+    item = load_test_data("test_item.json")
+    resp = app_client.get(f"collections/{item['collection']}/items")
+    assert resp.headers["content-type"] == "application/geo+json"
+
+
+def test_get_feature_content_type(app_client, load_test_data, postgres_transactions):
+    item = load_test_data("test_item.json")
+    postgres_transactions.create_item(
+        item["collection"], item, request=MockStarletteRequest
+    )
+    resp = app_client.get(f"collections/{item['collection']}/items/{item['id']}")
+    assert resp.headers["content-type"] == "application/geo+json"
+
+
+def test_item_collection_filter_bbox(load_test_data, app_client, postgres_transactions):
+    item = load_test_data("test_item.json")
+    collection = item["collection"]
+    postgres_transactions.create_item(
+        item["collection"], item, request=MockStarletteRequest
+    )
+
+    bbox = "100,-50,170,-20"
+    resp = app_client.get(f"/collections/{collection}/items", params={"bbox": bbox})
+    assert resp.status_code == 200
+    resp_json = resp.json()
+    assert len(resp_json["features"]) == 1
+
+    bbox = "1,2,3,4"
+    resp = app_client.get(f"/collections/{collection}/items", params={"bbox": bbox})
+    assert resp.status_code == 200
+    resp_json = resp.json()
+    assert len(resp_json["features"]) == 0
+
+
+def test_item_collection_filter_datetime(
+    load_test_data, app_client, postgres_transactions
+):
+    item = load_test_data("test_item.json")
+    collection = item["collection"]
+    postgres_transactions.create_item(
+        item["collection"], item, request=MockStarletteRequest
+    )
+
+    datetime_range = "2020-01-01T00:00:00.00Z/.."
+    resp = app_client.get(
+        f"/collections/{collection}/items", params={"datetime": datetime_range}
+    )
+    assert resp.status_code == 200
+    resp_json = resp.json()
+    assert len(resp_json["features"]) == 1
+
+    datetime_range = "2018-01-01T00:00:00.00Z/2019-01-01T00:00:00.00Z"
+    resp = app_client.get(
+        f"/collections/{collection}/items", params={"datetime": datetime_range}
+    )
+    assert resp.status_code == 200
+    resp_json = resp.json()
+    assert len(resp_json["features"]) == 0

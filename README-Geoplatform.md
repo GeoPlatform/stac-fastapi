@@ -39,3 +39,16 @@ A sample ndjson collection and items are in the /data directory. To bulk load th
 ```sh
 docker-compose -f docker-compose.gp.yml exec stac sh /data/bulk_load_all.sh
 ```
+
+
+## Validating
+
+Use the [stac-validator](https://stac-validator.readthedocs.io/en/latest/) tool to validate imported collections. 
+
+```sh
+pip install stac-validator
+# then run against a catalog
+stac-validator --verbose --recursive https://gp-sit-us-east-1-public-configs.s3.amazonaws.com/stac/national_map/catalog.json 
+# or run against the locally running stac api
+stac-validator --verbose --recursive http://localhost:8082
+```

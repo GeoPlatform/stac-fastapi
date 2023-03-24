@@ -5,7 +5,7 @@ services:
     image: stac-utils/stac-fastapi
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: docker/Dockerfile
     platform: linux/amd64
     environment:
       - APP_HOST=0.0.0.0
@@ -26,8 +26,7 @@ services:
       - ./scripts:/app/scripts
     depends_on:
       - database
-    command:
-      bash -c "./scripts/wait-for-it.sh database:5432 && python -m stac_fastapi.sqlalchemy.app"
+    command: bash -c "./scripts/wait-for-it.sh database:5432 && python -m stac_fastapi.sqlalchemy.app"
 
   app-pgstac:
     container_name: stac-fastapi-pgstac
@@ -58,19 +57,17 @@ services:
       - ./scripts:/app/scripts
     depends_on:
       - database
-    command:
-      bash -c "./scripts/wait-for-it.sh database:5432 && python -m stac_fastapi.pgstac.app"
+    command: bash -c "./scripts/wait-for-it.sh database:5432 && python -m stac_fastapi.pgstac.app"
 
   database:
     container_name: stac-db
-    image: ghcr.io/stac-utils/pgstac:v0.6.8
+    image: ghcr.io/stac-utils/pgstac:v0.7.1
     environment:
       - POSTGRES_USER=username
       - POSTGRES_PASSWORD=password
       - POSTGRES_DB=postgis
       - PGUSER=username
       - PGPASSWORD=password
-      - PGHOST=localhost
       - PGDATABASE=postgis
     ports:
       - "5439:5432"
@@ -90,7 +87,7 @@ services:
       - ./stac_fastapi:/app/stac_fastapi
       - ./scripts:/app/scripts
     command: >
-      bash -c "./scripts/wait-for-it.sh app-sqlalchemy:8081 && cd stac_fastapi/sqlalchemy && alembic upgrade head && python /app/scripts/ingest_joplin.py http://app-sqlalchemy:8081"
+      bash -c "./scripts/wait-for-it.sh app-sqlalchemy:8081 -t 60 && cd stac_fastapi/sqlalchemy && alembic upgrade head && python /app/scripts/ingest_joplin.py http://app-sqlalchemy:8081"
     depends_on:
       - database
       - app-sqlalchemy
@@ -105,6 +102,8 @@ services:
       - ./scripts:/app/scripts
     command:
       - "./scripts/wait-for-it.sh"
+      - "-t"
+      - "60"
       - "app-pgstac:8082"
       - "--"
       - "python"

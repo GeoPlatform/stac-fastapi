@@ -1,4 +1,12 @@
-"""FastAPI application using PGStac."""
+"""FastAPI application using PGStac.
+
+Enables the extensions specified as a comma-delimited list in
+the ENABLED_EXTENSIONS environment variable (e.g. `transactions,sort,query`).
+If the variable is not set, enables all extensions.
+"""
+
+import os
+
 from fastapi.responses import ORJSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -23,20 +31,28 @@ from stac_fastapi.pgstac.types.search import PgstacSearch
 from stac_fastapi.pgstac.gp_utils import route_dependencies
 
 settings = Settings()
-extensions = [
-    TransactionExtension(
+extensions_map = {
+    "transaction": TransactionExtension(
         client=TransactionsClient(),
         settings=settings,
         response_class=ORJSONResponse,
     ),
-    QueryExtension(),
-    SortExtension(),
-    FieldsExtension(),
-    TokenPaginationExtension(),
-    ContextExtension(),
-    FilterExtension(client=FiltersClient()),
-    BulkTransactionExtension(client=BulkTransactionsClient()),
-]
+    "query": QueryExtension(),
+    "sort": SortExtension(),
+    "fields": FieldsExtension(),
+    "pagination": TokenPaginationExtension(),
+    "context": ContextExtension(),
+    "filter": FilterExtension(client=FiltersClient()),
+    "bulk_transactions": BulkTransactionExtension(client=BulkTransactionsClient()),
+}
+
+if enabled_extensions := os.getenv("ENABLED_EXTENSIONS"):
+    extensions = [
+        extensions_map[extension_name]
+        for extension_name in enabled_extensions.split(",")
+    ]
+else:
+    extensions = list(extensions_map.values())
 
 post_request_model = create_post_request_model(extensions, base_model=PgstacSearch)
 
@@ -81,6 +97,7 @@ def run():
             port=settings.app_port,
             log_level="info",
             reload=settings.reload,
+            root_path=os.getenv("UVICORN_ROOT_PATH", ""),
         )
     except ImportError:
         raise RuntimeError("Uvicorn must be installed in order to use command")

@@ -2,7 +2,7 @@
 import re
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Union
-from urllib.parse import urljoin
+from urllib.parse import unquote_plus, urljoin
 
 import attr
 import orjson
@@ -18,7 +18,12 @@ from stac_pydantic.shared import MimeTypes
 from starlette.requests import Request
 
 from stac_fastapi.pgstac.config import Settings
-from stac_fastapi.pgstac.models.links import CollectionLinks, ItemLinks, PagingLinks
+from stac_fastapi.pgstac.models.links import (
+    CollectionLinks,
+    ItemCollectionLinks,
+    ItemLinks,
+    PagingLinks,
+)
 from stac_fastapi.pgstac.types.search import PgstacSearch
 from stac_fastapi.pgstac.utils import filter_fields
 from stac_fastapi.types.core import AsyncBaseCoreClient
@@ -248,6 +253,8 @@ class CoreCrudClient(AsyncBaseCoreClient):
     async def item_collection(
         self,
         collection_id: str,
+        bbox: Optional[List[NumType]] = None,
+        datetime: Optional[Union[str, datetime]] = None,
         limit: Optional[int] = None,
         token: str = None,
         **kwargs,
@@ -267,11 +274,24 @@ class CoreCrudClient(AsyncBaseCoreClient):
         # If collection does not exist, NotFoundError wil be raised
         await self.get_collection(collection_id, **kwargs)
 
+        base_args = {
+            "collections": [collection_id],
+            "bbox": bbox,
+            "datetime": datetime,
+            "limit": limit,
+            "token": token,
+        }
+
+        clean = {}
+        for k, v in base_args.items():
+            if v is not None and v != []:
+                clean[k] = v
+
         req = self.post_request_model(
-            collections=[collection_id], limit=limit, token=token
+            **clean,
         )
         item_collection = await self._search_base(req, **kwargs)
-        links = await CollectionLinks(
+        links = await ItemCollectionLinks(
             collection_id=collection_id, request=kwargs["request"]
         ).get_links(extra_links=item_collection["links"])
         item_collection["links"] = links
@@ -332,6 +352,7 @@ class CoreCrudClient(AsyncBaseCoreClient):
         sortby: Optional[str] = None,
         filter: Optional[str] = None,
         filter_lang: Optional[str] = None,
+        intersects: Optional[str] = None,
         **kwargs,
     ) -> ItemCollection:
         """Cross catalog search (GET).
@@ -357,7 +378,7 @@ class CoreCrudClient(AsyncBaseCoreClient):
             "bbox": bbox,
             "limit": limit,
             "token": token,
-            "query": orjson.loads(query) if query else query,
+            "query": orjson.loads(unquote_plus(query)) if query else query,
         }
 
         if filter:
@@ -368,6 +389,9 @@ class CoreCrudClient(AsyncBaseCoreClient):
 
         if datetime:
             base_args["datetime"] = datetime
+
+        if intersects:
+            base_args["intersects"] = orjson.loads(unquote_plus(intersects))
 
         if sortby:
             # https://github.com/radiantearth/stac-spec/tree/master/api-spec/extensions/sort#http-get-or-post-form

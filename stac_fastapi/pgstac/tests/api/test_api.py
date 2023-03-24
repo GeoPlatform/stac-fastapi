@@ -1,6 +1,10 @@
 from datetime import datetime, timedelta
+from typing import Any, Dict, List
+from urllib.parse import quote_plus
 
+import orjson
 import pytest
+from pystac import Collection, Extent, Item, SpatialExtent, TemporalExtent
 
 STAC_CORE_ROUTES = [
     "GET /",
@@ -21,6 +25,24 @@ STAC_TRANSACTION_ROUTES = [
     "PUT /collections",
     "PUT /collections/{collection_id}/items/{item_id}",
 ]
+
+GLOBAL_BBOX = [-180.0, -90.0, 180.0, 90.0]
+GLOBAL_GEOMETRY = {
+    "type": "Polygon",
+    "coordinates": (
+        (
+            (180.0, -90.0),
+            (180.0, 90.0),
+            (-180.0, 90.0),
+            (-180.0, -90.0),
+            (180.0, -90.0),
+        ),
+    ),
+}
+DEFAULT_EXTENT = Extent(
+    SpatialExtent(GLOBAL_BBOX),
+    TemporalExtent([[datetime.now(), None]]),
+)
 
 
 async def test_post_search_content_type(app_client):
@@ -43,6 +65,33 @@ async def test_get_queryables_content_type(app_client, load_test_collection):
     assert resp.headers["content-type"] == "application/schema+json"
 
 
+async def test_get_features_content_type(app_client, load_test_collection):
+    coll = load_test_collection
+    resp = await app_client.get(f"collections/{coll.id}/items")
+    assert resp.headers["content-type"] == "application/geo+json"
+
+
+async def test_get_features_self_link(app_client, load_test_collection):
+    # https://github.com/stac-utils/stac-fastapi/issues/483
+    resp = await app_client.get(f"collections/{load_test_collection.id}/items")
+    assert resp.status_code == 200
+    resp_json = resp.json()
+    self_link = next(
+        (link for link in resp_json["links"] if link["rel"] == "self"), None
+    )
+    assert self_link is not None
+    assert self_link["href"].endswith("/items")
+
+
+async def test_get_feature_content_type(
+    app_client, load_test_collection, load_test_item
+):
+    resp = await app_client.get(
+        f"collections/{load_test_collection.id}/items/{load_test_item.id}"
+    )
+    assert resp.headers["content-type"] == "application/geo+json"
+
+
 async def test_api_headers(app_client):
     resp = await app_client.get("/api")
     assert (
@@ -61,6 +110,13 @@ async def test_core_router(api_client, app):
         [f"{list(route.methods)[0]} {route.path}" for route in api_client.app.routes]
     )
     assert not core_routes - api_routes
+
+
+async def test_landing_page_stac_extensions(app_client):
+    resp = await app_client.get("/")
+    assert resp.status_code == 200
+    resp_json = resp.json()
+    assert not resp_json["stac_extensions"]
 
 
 async def test_transactions_router(api_client, app):
@@ -92,6 +148,12 @@ async def test_app_query_extension(load_test_data, app_client, load_test_collect
 
     params = {"query": {"proj:epsg": {"eq": item["properties"]["proj:epsg"]}}}
     resp = await app_client.post("/search", json=params)
+    assert resp.status_code == 200
+    resp_json = resp.json()
+    assert len(resp_json["features"]) == 1
+
+    params["query"] = quote_plus(orjson.dumps(params["query"]))
+    resp = await app_client.get("/search", params=params)
     assert resp.status_code == 200
     resp_json = resp.json()
     assert len(resp_json["features"]) == 1
@@ -141,7 +203,7 @@ async def test_app_query_extension_limit_gt10000(
 
     params = {"limit": 10001}
     resp = await app_client.post("/search", json=params)
-    assert resp.status_code == 400
+    assert resp.status_code == 200
 
 
 async def test_app_query_extension_gt(load_test_data, app_client, load_test_collection):
@@ -268,6 +330,15 @@ async def test_search_point_intersects(
     resp = await app_client.post(f"/collections/{coll.id}/items", json=item)
     assert resp.status_code == 200
 
+    new_coordinates = list()
+    for coordinate in item["geometry"]["coordinates"][0]:
+        new_coordinates.append([coordinate[0] * -1, coordinate[1] * -1])
+    item["id"] = "test-item-other-hemispheres"
+    item["geometry"]["coordinates"] = [new_coordinates]
+    item["bbox"] = list(value * -1 for value in item["bbox"])
+    resp = await app_client.post(f"/collections/{coll.id}/items", json=item)
+    assert resp.status_code == 200
+
     point = [150.04, -33.14]
     intersects = {"type": "Point", "coordinates": point}
 
@@ -276,6 +347,12 @@ async def test_search_point_intersects(
         "collections": [item["collection"]],
     }
     resp = await app_client.post("/search", json=params)
+    assert resp.status_code == 200
+    resp_json = resp.json()
+    assert len(resp_json["features"]) == 1
+
+    params["intersects"] = orjson.dumps(params["intersects"]).decode("utf-8")
+    resp = await app_client.get("/search", params=params)
     assert resp.status_code == 200
     resp_json = resp.json()
     assert len(resp_json["features"]) == 1
@@ -415,3 +492,133 @@ async def test_collection_queryables(load_test_data, app_client, load_test_colle
     assert "properties" in q
     assert "id" in q["properties"]
     assert "eo:cloud_cover" in q["properties"]
+
+
+@pytest.mark.asyncio
+async def test_item_collection_filter_bbox(
+    load_test_data, app_client, load_test_collection
+):
+    coll = load_test_collection
+    first_item = load_test_data("test_item.json")
+    resp = await app_client.post(f"/collections/{coll.id}/items", json=first_item)
+    assert resp.status_code == 200
+
+    bbox = "100,-50,170,-20"
+    resp = await app_client.get(f"/collections/{coll.id}/items", params={"bbox": bbox})
+    assert resp.status_code == 200
+    resp_json = resp.json()
+    assert len(resp_json["features"]) == 1
+
+    bbox = "1,2,3,4"
+    resp = await app_client.get(f"/collections/{coll.id}/items", params={"bbox": bbox})
+    assert resp.status_code == 200
+    resp_json = resp.json()
+    assert len(resp_json["features"]) == 0
+
+
+@pytest.mark.asyncio
+async def test_item_collection_filter_datetime(
+    load_test_data, app_client, load_test_collection
+):
+    coll = load_test_collection
+    first_item = load_test_data("test_item.json")
+    resp = await app_client.post(f"/collections/{coll.id}/items", json=first_item)
+    assert resp.status_code == 200
+
+    datetime_range = "2020-01-01T00:00:00.00Z/.."
+    resp = await app_client.get(
+        f"/collections/{coll.id}/items", params={"datetime": datetime_range}
+    )
+    assert resp.status_code == 200
+    resp_json = resp.json()
+    assert len(resp_json["features"]) == 1
+
+    datetime_range = "2018-01-01T00:00:00.00Z/2019-01-01T00:00:00.00Z"
+    resp = await app_client.get(
+        f"/collections/{coll.id}/items", params={"datetime": datetime_range}
+    )
+    assert resp.status_code == 200
+    resp_json = resp.json()
+    assert len(resp_json["features"]) == 0
+
+
+@pytest.mark.asyncio
+async def test_bad_collection_queryables(
+    load_test_data, app_client, load_test_collection
+):
+    resp = await app_client.get("/collections/bad-collection/queryables")
+    assert resp.status_code == 404
+
+
+async def test_deleting_items_with_identical_ids(app_client):
+    collection_a = Collection("collection-a", "The first collection", DEFAULT_EXTENT)
+    collection_b = Collection("collection-b", "The second collection", DEFAULT_EXTENT)
+    item = Item("the-item", GLOBAL_GEOMETRY, GLOBAL_BBOX, datetime.now(), {})
+
+    for collection in (collection_a, collection_b):
+        response = await app_client.post(
+            "/collections", json=collection.to_dict(include_self_link=False)
+        )
+        assert response.status_code == 200
+        item_as_dict = item.to_dict(include_self_link=False)
+        item_as_dict["collection"] = collection.id
+        response = await app_client.post(
+            f"/collections/{collection.id}/items", json=item_as_dict
+        )
+        assert response.status_code == 200
+        response = await app_client.get(f"/collections/{collection.id}/items")
+        assert response.status_code == 200, response.json()
+        assert len(response.json()["features"]) == 1
+
+    for collection in (collection_a, collection_b):
+        response = await app_client.delete(
+            f"/collections/{collection.id}/items/{item.id}"
+        )
+        assert response.status_code == 200, response.json()
+        response = await app_client.get(f"/collections/{collection.id}/items")
+        assert response.status_code == 200, response.json()
+        assert not response.json()["features"]
+
+
+@pytest.mark.parametrize("direction", ("asc", "desc"))
+async def test_sorting_and_paging(app_client, load_test_collection, direction: str):
+    collection_id = load_test_collection.id
+    for i in range(10):
+        item = Item(
+            id=f"item-{i}",
+            geometry={"type": "Point", "coordinates": [-105.1019, 40.1672]},
+            bbox=[-105.1019, 40.1672, -105.1019, 40.1672],
+            datetime=datetime.now(),
+            properties={
+                "eo:cloud_cover": 42 + i if i % 3 != 0 else None,
+            },
+        )
+        item.collection_id = collection_id
+        response = await app_client.post(
+            f"/collections/{collection_id}/items",
+            json=item.to_dict(include_self_link=False, transform_hrefs=False),
+        )
+        assert response.status_code == 200
+
+    async def search(query: Dict[str, Any]) -> List[Item]:
+        items: List[Item] = list()
+        while True:
+            response = await app_client.post("/search", json=query)
+            json = response.json()
+            assert response.status_code == 200, json
+            items.extend((Item.from_dict(d) for d in json["features"]))
+            next_link = next(
+                (link for link in json["links"] if link["rel"] == "next"), None
+            )
+            if next_link is None:
+                return items
+            else:
+                query = next_link["body"]
+
+    query = {
+        "collections": [collection_id],
+        "sortby": [{"field": "properties.eo:cloud_cover", "direction": direction}],
+        "limit": 5,
+    }
+    items = await search(query)
+    assert len(items) == 10, items

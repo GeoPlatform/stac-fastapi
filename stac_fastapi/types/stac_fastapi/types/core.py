@@ -351,13 +351,10 @@ class BaseCoreClient(LandingPageMixin, abc.ABC):
         """
         request: Request = kwargs["request"]
         base_url = get_base_url(request)
-        extension_schemas = [
-            schema.schema_href for schema in self.extensions if schema.schema_href
-        ]
         landing_page = self._landing_page(
             base_url=base_url,
             conformance_classes=self.conformance_classes(),
-            extension_schemas=extension_schemas,
+            extension_schemas=[],
         )
 
         # Add Collections links
@@ -436,6 +433,7 @@ class BaseCoreClient(LandingPageMixin, abc.ABC):
         token: Optional[str] = None,
         fields: Optional[List[str]] = None,
         sortby: Optional[str] = None,
+        intersects: Optional[str] = None,
         **kwargs,
     ) -> stac_types.ItemCollection:
         """Cross catalog search (GET).
@@ -489,7 +487,13 @@ class BaseCoreClient(LandingPageMixin, abc.ABC):
 
     @abc.abstractmethod
     def item_collection(
-        self, collection_id: str, limit: int = 10, token: str = None, **kwargs
+        self,
+        collection_id: str,
+        bbox: Optional[List[NumType]] = None,
+        datetime: Optional[Union[str, datetime]] = None,
+        limit: int = 10,
+        token: str = None,
+        **kwargs,
     ) -> stac_types.ItemCollection:
         """Get all items from a specific collection.
 
@@ -544,13 +548,10 @@ class AsyncBaseCoreClient(LandingPageMixin, abc.ABC):
         """
         request: Request = kwargs["request"]
         base_url = get_base_url(request)
-        extension_schemas = [
-            schema.schema_href for schema in self.extensions if schema.schema_href
-        ]
         landing_page = self._landing_page(
             base_url=base_url,
             conformance_classes=self.conformance_classes(),
-            extension_schemas=extension_schemas,
+            extension_schemas=[],
         )
         collections = await self.all_collections(request=kwargs["request"])
         for collection in collections["collections"]:
@@ -627,6 +628,7 @@ class AsyncBaseCoreClient(LandingPageMixin, abc.ABC):
         token: Optional[str] = None,
         fields: Optional[List[str]] = None,
         sortby: Optional[str] = None,
+        intersects: Optional[str] = None,
         **kwargs,
     ) -> stac_types.ItemCollection:
         """Cross catalog search (GET).
@@ -684,7 +686,13 @@ class AsyncBaseCoreClient(LandingPageMixin, abc.ABC):
 
     @abc.abstractmethod
     async def item_collection(
-        self, collection_id: str, limit: int = 10, token: str = None, **kwargs
+        self,
+        collection_id: str,
+        bbox: Optional[List[NumType]] = None,
+        datetime: Optional[Union[str, datetime]] = None,
+        limit: int = 10,
+        token: str = None,
+        **kwargs,
     ) -> stac_types.ItemCollection:
         """Get all items from a specific collection.
 
