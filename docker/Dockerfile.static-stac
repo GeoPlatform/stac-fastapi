@@ -4,6 +4,9 @@ FROM ghcr.io/stac-utils/pgstac:latest as pgstac
 
 FROM debian:bullseye-slim as base
 
+ARG IMPORT_FILE
+RUN ["/bin/bash", "-c", ": ${IMPORT_FILE:?IMPORT_FILE argument needs to be set and not null.}"]
+
 ENV PGSTACDOCKER=1
 ENV PATH=/opt/venv/bin:/opt/bin:/usr/local/bin:$PATH:/usr/lib/postgresql/15/bin
 ENV PYTHONPATH=/opt/src/pypgstac:/opt/python:${PYTHONPATH}
@@ -42,14 +45,20 @@ RUN python -m pip install --upgrade pip && pip install psycopg psycopg_pool smar
 # script
 COPY ./gp/wait-for-pg-isready.sh /tmp/wait-for-pg-isready.sh
 COPY ./gp/startup.sh /tmp/startup.sh
-RUN chmod 755 /tmp/wait-for-pg-isready.sh /tmp/startup.sh
+COPY ./gp/stac-import.sh /tmp/stac-import.sh
+
+RUN chmod 755 /tmp/wait-for-pg-isready.sh /tmp/startup.sh /tmp/stac-import.sh
 
 RUN sed -i "s/CREATE TABLE queryables/CREATE TABLE IF NOT EXISTS queryables/g" /opt/src/pgstac/sql/002a_queryables.sql
 WORKDIR /tmp
+
+# Copy in the import file (we intentially leave this file in the image as a reference)
+COPY ${IMPORT_FILE} /tmp/import_file.txt
+
 RUN set -e && \
     bash -c "docker-entrypoint.sh postgres &" && \
     /tmp/wait-for-pg-isready.sh && \
-    exec gosu postgres pypgstac load collections https://geoplatform-cdn-temp.s3.amazonaws.com/stac-import/national-map/collections.ndjson
+    exec gosu postgres /tmp/stac-import.sh /tmp/import_file.txt
 
 # Trigger postgres shutdown on stop
 STOPSIGNAL SIGINT
