@@ -8,7 +8,7 @@ docker build --platform linux/amd64 -t ${STAGE}-stac-fastapi . -f docker/Dockerf
 
 docker tag ${STAGE}-stac-fastapi ${AWS_ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com/${STAGE}-stac-fastapi:latest
 
-aws ecr get-login-password --profile default --region us-east-1 | docker login --username AWS --password-stdin ${AWS_ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com 
+# aws ecr get-login-password --profile default --region us-east-1 | docker login --username AWS --password-stdin ${AWS_ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com 
 
 docker push ${AWS_ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com/${STAGE}-stac-fastapi:latest
 
