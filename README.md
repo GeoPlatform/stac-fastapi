@@ -1,5 +1,10 @@
 <!-- markdownlint-disable MD033 MD041 -->
 
+**Use the [README-Geoplatform](./README-Geoplatform.md)
+for GeoPlatform Deployment**
+
+---
+
 <p align="center">
   <img src="https://github.com/radiantearth/stac-site/raw/master/images/logo/stac-030-long.png" width=400>
   <p align="center">FastAPI implemention of the STAC API spec.</p>
