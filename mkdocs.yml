@@ -13,11 +13,6 @@ extra:
     - icon: 'fontawesome/brands/github'
       link: 'https://github.com/stac-utils'
 
-# Add Google Analytics script
-extra_javascript:
-  - https://www.googletagmanager.com/gtag/js?id=G-0WL8YPDEM8
-  - js/gtag.js
-
 # Layout
 nav:
   - Home: 'index.md'

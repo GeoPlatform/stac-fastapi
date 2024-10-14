@@ -1,6 +1,7 @@
 """api middleware."""
 import re
 import typing
+import requests
 from http.client import HTTP_PORT, HTTPS_PORT
 from typing import List, Tuple
 
@@ -132,3 +133,54 @@ class ProxyHeaderMiddleware:
             for name, value in scope["headers"]
             if name.decode() != header_name
         ] + [(str.encode(header_name), str.encode(new_value))]
+
+
+class GATrackingMiddleware:
+    """
+    Middleware to send Google Analytics events for each API request.
+    """
+
+    def __init__(self, app: ASGIApp, ga_measurement_id: str, api_secret: str):
+        """Initialize GA tracking middleware."""
+        self.app = app
+        self.ga_measurement_id = ga_measurement_id
+        self.api_secret = api_secret
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        """Middleware call to handle incoming requests and send GA events."""
+        if scope["type"] == "http":
+            path = scope.get("path", "")
+            # Send GA events for all paths besides the health check pings
+            if path != "/_mgmt/ping":
+                await self.send_ga_event(scope)
+        
+        await self.app(scope, receive, send)        
+
+    async def send_ga_event(self, scope: Scope):
+        """Send event to Google Analytics."""
+        path = scope.get("path", "")
+        method = scope.get("method", "")
+        client_id = '555'
+
+        # GA Measurement Protocol endpoint
+        ga_endpoint = f'https://www.google-analytics.com/mp/collect?measurement_id={self.ga_measurement_id}&api_secret={self.api_secret}'
+
+        # GA payload for tracking an event
+        payload = {
+            'client_id': client_id,
+            'events': [
+                {
+                    'name': 'api_request',
+                    'params': {
+                        'method': method,
+                        'path': path
+                    }
+                }
+            ]
+        }
+
+        try:
+            # Send the request to GA
+            requests.post(ga_endpoint, json=payload)
+        except Exception as e:
+            print(f"Error sending GA event: {e}")

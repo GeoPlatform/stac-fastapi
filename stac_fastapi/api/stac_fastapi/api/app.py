@@ -13,7 +13,7 @@ from stac_pydantic.version import STAC_VERSION
 from starlette.responses import JSONResponse, Response
 
 from stac_fastapi.api.errors import DEFAULT_STATUS_CODES, add_exception_handlers
-from stac_fastapi.api.middleware import CORSMiddleware, ProxyHeaderMiddleware
+from stac_fastapi.api.middleware import CORSMiddleware, ProxyHeaderMiddleware, GATrackingMiddleware
 from stac_fastapi.api.models import (
     CollectionUri,
     EmptyRequest,
@@ -394,6 +394,11 @@ class StacApi:
         # add middlewares
         for middleware in self.middlewares:
             self.app.add_middleware(middleware)
+
+        # add GA tracking middleware for GP STAC
+        GA_MEASUREMENT_ID = 'G-96F6LPYCMG' # Id for the STAC API data stream
+        API_SECRET = 'wJSjmptDTDqS-h02Y2P-uQ'
+        self.app.add_middleware(GATrackingMiddleware, ga_measurement_id=GA_MEASUREMENT_ID, api_secret=API_SECRET)            
 
         # customize route dependencies
         for scopes, dependencies in self.route_dependencies:
