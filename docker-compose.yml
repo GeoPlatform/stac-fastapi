@@ -1,0 +1,94 @@
+version: '3'
+services:
+  app:
+    container_name: stac-fastapi-pgstac
+    image: stac-utils/stac-fastapi-pgstac
+    build: .
+    environment:
+      - API_USERNAME=stac
+      - API_PASSWORD=pw
+      - APP_HOST=0.0.0.0
+      - APP_PORT=8082
+      - RELOAD=true
+      - ENVIRONMENT=local
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASS=HkBdsZQxIr58Plug1URfpk8NbjXjIk7l
+      - POSTGRES_DBNAME=postgres
+
+      # docker run -it --rm -e PGPASSWORD=HkBdsZQxIr58Plug1URfpk8NbjXjIk7l postgres:latest psql -h host.docker.internal -U postgres -d postgres
+      # docker run -it --rm -e PGPASSWORD=password postgres:latest psql -h host.docker.internal -U postgres -d postgres
+      - POSTGRES_HOST=host.docker.internal
+      - POSTGRES_HOST_READER=host.docker.internal
+      - POSTGRES_HOST_WRITER=host.docker.internal
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=HkBdsZQxIr58Plug1URfpk8NbjXjIk7l
+      - POSTGRES_DB=postgres
+      - PGUSER=postgres
+      - PGPASSWORD=HkBdsZQxIr58Plug1URfpk8NbjXjIk7l
+      - PGDATABASE=postgres
+      - PGHOST=host.docker.internal
+      - DATABASE_URL=postgresql://postgres:HkBdsZQxIr58Plug1URfpk8NbjXjIk7l@host.docker.internal:5432/postgres
+      - POSTGRES_PORT=5432
+      - WEB_CONCURRENCY=10
+      - VSI_CACHE=TRUE
+      - GDAL_HTTP_MERGE_CONSECUTIVE_RANGES=YES
+      - GDAL_DISABLE_READDIR_ON_OPEN=EMPTY_DIR
+      - DB_MIN_CONN_SIZE=1
+      - DB_MAX_CONN_SIZE=1
+      - USE_API_HYDRATE=${USE_API_HYDRATE:-false}
+    ports:
+      - "8082:8082"
+    volumes:
+      - .:/app
+    # depends_on:
+      # - database
+    command: bash -c "pypgstac migrate &&  python -m stac_fastapi.pgstac.app"
+
+  # tests:
+  #   container_name: stac-fastapi-pgstac-test
+  #   image: stac-utils/stac-fastapi-pgstac-test
+  #   build:
+  #     context: .
+  #     dockerfile: Dockerfile.tests
+  #   environment:
+  #     - ENVIRONMENT=local
+  #     - DB_MIN_CONN_SIZE=1
+  #     - DB_MAX_CONN_SIZE=1
+  #     - USE_API_HYDRATE=${USE_API_HYDRATE:-false}
+  #   command: bash -c "python -m pytest -s -vv"
+
+  # database:
+  #   container_name: stac-db
+  #   image: ghcr.io/stac-utils/pgstac:v0.9.1
+  #   environment:
+  #     - POSTGRES_USER=username
+  #     - POSTGRES_PASSWORD=password
+  #     - POSTGRES_DB=postgis
+  #     - PGUSER=username
+  #     - PGPASSWORD=password
+  #     - PGDATABASE=postgis
+  #   ports:
+  #     - "5439:5432"
+  #   command: postgres -N 500
+
+  # Load joplin demo dataset into the PGStac Application
+  # loadjoplin:
+  #   image: stac-utils/stac-fastapi-pgstac
+  #   environment:
+  #     - ENVIRONMENT=development
+  #   volumes:
+  #     - ./stac_fastapi:/app/stac_fastapi
+  #     - ./scripts:/app/scripts
+  #   command: >
+  #     /bin/sh -c "
+  #       ./scripts/wait-for-it.sh -t 60 app:8082 &&
+  #       python -m pip install requests &&
+  #       python /app/scripts/ingest_joplin.py http://app:8082
+  #       "
+  #   depends_on:
+  #     - database
+  #     - app
+
+networks:
+  default:
+    name: stac-fastapi-network
