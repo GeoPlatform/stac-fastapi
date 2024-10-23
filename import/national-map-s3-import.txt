@@ -1,0 +1,4 @@
+https://geoplatform-cdn-temp.s3.amazonaws.com/stac-import/national-map/collections.ndjson
+https://geoplatform-cdn-temp.s3.amazonaws.com/stac-import/national-map/items/struct_features.ndjson
+https://geoplatform-cdn-temp.s3.amazonaws.com/stac-import/national-map/items/topo_map_vector_features.ndjson
+https://geoplatform-cdn-temp.s3.amazonaws.com/stac-import/national-map/items/tran_features.ndjson

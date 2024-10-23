@@ -1,0 +1,38 @@
+version: '3'
+services:
+
+  stac:
+    container_name: stac-fastapi-pgstac
+    # image: 998343784597.dkr.ecr.us-east-1.amazonaws.com/sit-stac-fastapi:latest
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    platform: linux/amd64
+    env_file:
+      - .env
+    ports:
+      - "8082:8082"
+    volumes:
+      - ./stac_fastapi:/app/stac_fastapi
+      - ./scripts:/app/scripts
+      - ./data:/data
+    depends_on:
+      - database
+    command:
+      bash -c "./scripts/wait-for-it.sh database:5432 && pypgstac migrate && python -m stac_fastapi.pgstac.app"
+
+  database:
+    container_name: stac-db
+    image: postgis/postgis:14-master
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASS}
+      - POSTGRES_DB=${POSTGRES_DB}
+    ports:
+      - "5439:5432"
+    volumes:
+      - stac_pgdata:/var/lib/postgresql/data
+    command: postgres -N 500
+
+volumes:
+  stac_pgdata:

@@ -8,6 +8,8 @@ If the variable is not set, enables all extensions.
 import os
 
 from fastapi.responses import ORJSONResponse
+from fastapi.middleware.cors import CORSMiddleware
+
 from stac_fastapi.api.app import StacApi
 from stac_fastapi.api.models import (
     ItemCollectionUri,
@@ -31,6 +33,7 @@ from stac_fastapi.pgstac.extensions import QueryExtension
 from stac_fastapi.pgstac.extensions.filter import FiltersClient
 from stac_fastapi.pgstac.transactions import BulkTransactionsClient, TransactionsClient
 from stac_fastapi.pgstac.types.search import PgstacSearch
+from stac_fastapi.pgstac.gp_utils import route_dependencies
 
 settings = Settings()
 extensions_map = {
@@ -75,9 +78,16 @@ api = StacApi(
     items_get_request_model=items_get_request_model,
     search_get_request_model=get_request_model,
     search_post_request_model=post_request_model,
+    route_dependencies=route_dependencies
 )
 app = api.app
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_credentials=True
+)
 
 @app.on_event("startup")
 async def startup_event():

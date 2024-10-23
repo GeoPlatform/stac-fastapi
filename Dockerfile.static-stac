@@ -1,0 +1,72 @@
+FROM ghcr.io/stac-utils/stac-fastapi:latest as stac-fastapi
+
+FROM ghcr.io/stac-utils/pgstac:latest as pgstac
+
+FROM debian:bullseye-slim as base
+
+ARG IMPORT_FILE
+RUN ["/bin/bash", "-c", ": ${IMPORT_FILE:?IMPORT_FILE argument needs to be set and not null.}"]
+
+ENV PGSTACDOCKER=1
+ENV PATH=/opt/venv/bin:/opt/bin:/usr/local/bin:$PATH:/usr/lib/postgresql/15/bin
+ENV PYTHONPATH=/opt/src/pypgstac:/opt/python:${PYTHONPATH}
+ENV LANG=C.UTF-8
+
+# These are copies of the variables in gp/gp.env
+ENV POSTGRES_HOST_AUTH_METHOD=trust
+ENV PGDATA=/var/lib/postgresql/data
+ENV POSTGRES_DB=postgres
+
+COPY --from=stac-fastapi /opt /opt
+COPY --from=stac-fastapi /usr/local /usr/local
+COPY --from=pgstac /opt /opt
+
+# Copy postgresql binaries and libraries
+COPY --from=pgstac /lib/x86_64-linux-gnu /lib/x86_64-linux-gnu
+COPY --from=pgstac /usr/bin /usr/bin
+COPY --from=pgstac /usr/local/bin /usr/local/bin
+COPY --from=pgstac /var/lib/postgresql /var/lib/postgresql
+COPY --from=pgstac /usr/lib/postgresql /usr/lib/postgresql
+COPY --from=pgstac /etc/init.d/postgresql /etc/init.d/postgresql
+COPY --from=pgstac /usr/share/perl5 /usr/share/perl5
+COPY --from=pgstac /usr/share/postgresql /usr/share/postgresql
+COPY --from=pgstac /usr/share/postgresql-common /usr/share/postgresql-common
+COPY --from=pgstac /var/run/postgresql /var/run/postgresql
+COPY --from=pgstac /etc /etc
+COPY --from=pgstac /usr/lib/x86_64-linux-gnu /usr/lib/x86_64-linux-gnu
+COPY --from=pgstac /docker-entrypoint-initdb.d /docker-entrypoint-initdb.d
+
+# install a couple python extensions.  Our base image uses python3.8, but pgstac
+# uses 3.9, so we install via pip
+RUN python -m pip install --upgrade pip && pip install psycopg psycopg_pool smart_open[s3] smart_open[http]
+
+# Import stac catalog here.  We temporarily start the postgresql database
+# in the container, initialize the default database and then run an import
+# script
+COPY ./gp/wait-for-pg-isready.sh /tmp/wait-for-pg-isready.sh
+COPY ./gp/startup.sh /tmp/startup.sh
+COPY ./gp/stac-import.sh /tmp/stac-import.sh
+
+RUN chmod 755 /tmp/wait-for-pg-isready.sh /tmp/startup.sh /tmp/stac-import.sh
+
+WORKDIR /tmp
+
+# Copy in the import file (we intentially leave this file in the image as a reference)
+COPY ${IMPORT_FILE} /tmp/import_file.txt
+
+RUN set -e && \
+    bash -c "docker-entrypoint.sh postgres &" && \
+    /tmp/wait-for-pg-isready.sh && \
+    exec gosu postgres /tmp/stac-import.sh /tmp/import_file.txt
+
+# Turn down some postgres limits to try and keep the container size constant
+RUN sed -i "s/#temp_file_limit = -1/temp_file_limit = 1024/g" /var/lib/postgresql/data/postgresql.conf
+RUN sed -i "s/#max_wal_senders = 10/max_wal_senders = 0/g" /var/lib/postgresql/data/postgresql.conf
+RUN sed -i "s/#wal_level = replica/wal_level = minimal/g" /var/lib/postgresql/data/postgresql.conf
+RUN sed -i "s/max_wal_size = 1GB/max_wal_size = 128MB/g" /var/lib/postgresql/data/postgresql.conf
+
+# Trigger postgres shutdown on stop
+STOPSIGNAL SIGINT
+
+# User script that starts up postgres and the web server
+CMD ["/tmp/startup.sh"]
