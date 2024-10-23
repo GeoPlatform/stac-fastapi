@@ -1,4 +1,9 @@
-<!-- markdownlint-disable MD033 MD041 -->
+# stac-fastapi-pgstac
+
+[![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/stac-utils/stac-fastapi-pgstac/cicd.yaml?style=for-the-badge)](https://github.com/stac-utils/stac-fastapi-pgstac/actions/workflows/cicd.yaml)
+[![PyPI](https://img.shields.io/pypi/v/stac-fastapi.pgstac?style=for-the-badge)](https://pypi.org/project/stac-fastapi.pgstac)
+[![Documentation](https://img.shields.io/github/actions/workflow/status/stac-utils/stac-fastapi-pgstac/pages.yml?label=Docs&style=for-the-badge)](https://stac-utils.github.io/stac-fastapi-pgstac/)
+[![License](https://img.shields.io/github/license/stac-utils/stac-fastapi-pgstac?style=for-the-badge)](https://github.com/stac-utils/stac-fastapi-pgstac/blob/main/LICENSE)
 
 **Use the [README-Geoplatform](./README-Geoplatform.md)
 for GeoPlatform Deployment**
@@ -6,167 +11,94 @@ for GeoPlatform Deployment**
 ---
 
 <p align="center">
-  <img src="https://github.com/radiantearth/stac-site/raw/master/images/logo/stac-030-long.png" width=400>
-  <p align="center">FastAPI implemention of the STAC API spec.</p>
-</p>
-<p align="center">
-  <a href="https://github.com/stac-utils/stac-fastapi/actions?query=workflow%3Acicd" target="_blank">
-      <img src="https://github.com/stac-utils/stac-fastapi/workflows/stac-fastapi/badge.svg" alt="Test">
-  </a>
-  <a href="https://pypi.org/project/stac-fastapi" target="_blank">
-      <img src="https://img.shields.io/pypi/v/stac-fastapi.api?color=%2334D058&label=pypi%20package" alt="Package version">
-  </a>
-  <a href="https://github.com/stac-utils/stac-fastapi/blob/main/LICENSE" target="_blank">
-      <img src="https://img.shields.io/github/license/stac-utils/stac-fastapi.svg" alt="License">
-  </a>
+  <img src="https://user-images.githubusercontent.com/10407788/174893876-7a3b5b7a-95a5-48c4-9ff2-cc408f1b6af9.png" style="vertical-align: middle; max-width: 400px; max-height: 100px;" height=100 />
+  <img src="https://fastapi.tiangolo.com/img/logo-margin/logo-teal.png" alt="FastAPI" style="vertical-align: middle; max-width: 400px; max-height: 100px;" width=200 />
 </p>
 
----
+[PgSTAC](https://github.com/stac-utils/pgstac) backend for [stac-fastapi](https://github.com/stac-utils/stac-fastapi), the [FastAPI](https://fastapi.tiangolo.com/) implementation of the [STAC API spec](https://github.com/radiantearth/stac-api-spec)
 
-**Documentation**: [https://stac-utils.github.io/stac-fastapi/](https://stac-utils.github.io/stac-fastapi/)
+## Overview
 
-**Source Code**: [https://github.com/stac-utils/stac-fastapi](https://github.com/stac-utils/stac-fastapi)
+**stac-fastapi-pgstac** is an HTTP interface built in FastAPI.
+It validates requests and data sent to a [PgSTAC](https://github.com/stac-utils/pgstac) backend, and adds [links](https://github.com/radiantearth/stac-spec/blob/master/item-spec/item-spec.md#link-object) to the returned data.
+All other processing and search is provided directly using PgSTAC procedural sql / plpgsql functions on the database.
+PgSTAC stores all collection and item records as jsonb fields exactly as they come in allowing for any custom fields to be stored and retrieved transparently.
 
----
+## `PgSTAC` version
 
-Python library for building a STAC compliant FastAPI application.  The project is split up into several namespace
-packages:
+`stac-fastapi-pgstac` depends on [`pgstac`](https://stac-utils.github.io/pgstac/pgstac/) database schema and [`pypgstac`](https://stac-utils.github.io/pgstac/pypgstac/) python package.
 
-- **stac_fastapi.api**: An API layer which enforces the [stac-api-spec](https://github.com/radiantearth/stac-api-spec).
-- **stac_fastapi.extensions**: Abstract base classes for [STAC API extensions](https://github.com/radiantearth/stac-api-spec/blob/master/extensions.md) and third-party extensions.
-- **stac_fastapi.types**: Shared types and abstract base classes used by the library.
+| stac-fastapi-pgstac Version  |     pgstac |
+|                            --|          --|
+|                          2.5 | >=0.7,<0.8 |
+|                          3.0 | >=0.8,<0.9 |
 
-#### Backends
+## Usage
 
-- **stac_fastapi.sqlalchemy**: Postgres backend implementation with sqlalchemy.
-- **stac_fastapi.pgstac**: Postgres backend implementation with [PGStac](https://github.com/stac-utils/pgstac).
+PgSTAC is an external project and may be used by multiple front ends.
+For Stac FastAPI development, a Docker image (which is pulled as part of the docker-compose) is available via the [Github container registry](https://github.com/stac-utils/pgstac/pkgs/container/pgstac/81689794?tag=latest).
+The PgSTAC version required by **stac-fastapi-pgstac** is found in the [setup](http://github.com/stac-utils/stac-fastapi-pgstac/blob/main/setup.py) file.
 
-`stac-fastapi` was initially developed by [arturo-ai](https://github.com/arturo-ai).
+### Sorting
 
-## Installation
+While the STAC [Sort Extension](https://github.com/stac-api-extensions/sort) is fully supported, [PgSTAC](https://github.com/stac-utils/pgstac) is particularly enhanced to be able to sort by datetime (either ascending or descending).
+Sorting by anything other than datetime (the default if no sort is specified) on very large STAC repositories without very specific query limits (ie selecting a single day date range) will not have the same performance.
+For more than millions of records it is recommended to either set a low connection timeout on PostgreSQL or to disable use of the Sort Extension.
 
-```bash
-# Install from pypi.org
-pip install stac-fastapi.api stac-fastapi.types stac-fastapi.extensions
+### Hydration
 
-# Install a backend of your choice
-pip install stac-fastapi.sqlalchemy
-# or
-pip install stac-fastapi.pgstac
+To configure **stac-fastapi-pgstac** to [hydrate search result items in the API](https://stac-utils.github.io/pgstac/pgstac/#runtime-configurations), set the `USE_API_HYDRATE` environment variable to `true` or explicitly set the option in the PGStac Settings object.
 
-#/////////////////////
-# Install from sources
+### Migrations
 
-git clone https://github.com/stac-utils/stac-fastapi.git && cd stac-fastapi
-pip install \
-  -e stac_fastapi/api \
-  -e stac_fastapi/types \
-  -e stac_fastapi/extensions
-
-# Install a backend of your choice
-pip install -e stac_fastapi/sqlalchemy
-# or
-pip install -e stac_fastapi/pgstac
-```
-
-### Pre-built Docker images
-
-Pre-built images are available from the [Github Container Registry](https://github.com/stac-utils/stac-fastapi/pkgs/container/stac-fastapi).
-The latest images are tagged with `main-pgstac` and `main-sqlalchemy`.
-To pull the image to your local system:
+There is a Python utility as part of PgSTAC ([pypgstac](https://stac-utils.github.io/pgstac/pypgstac/)) that includes a migration utility.
+To use:
 
 ```shell
-docker pull ghcr.io/stac-utils/stac-fastapi:main-pgstac  # or main-sqlalchemy
+pypgstac migrate
 ```
 
-This repository provides two example [Docker compose](https://docs.docker.com/compose/) files that demonstrate how you might link the pre-built images with a postgres/pgstac database:
+## Contributing
 
-- [docker-compose.pgstac.yml](./docker/docker-compose.pgstac.yml)
-- [docker-compose.sqlalchemy.yml](./docker/docker-compose.sqlalchemy.yml)
+See [CONTRIBUTING](https://github.com/stac-utils/stac-fastapi-pgstac/blob/main/CONTRIBUTING.md) for detailed contribution instructions.
 
-## Local Development
-
-Use docker-compose via make to start the application, migrate the database, and ingest some example data:
-
-```bash
-make image
-make docker-run-all
-```
-
-- The SQLAlchemy backend app will be available on <http://localhost:8081>.
-- The PGStac backend app will be available on <http://localhost:8082>.
-
-You can also launch only one of the applications with either of these commands:
+To install:
 
 ```shell
-make docker-run-pgstac
-make docker-run-sqlalchemy
+git clone https://github.com/stac-utils/stac-fastapi-pgstac
+cd stac-fastapi-pgstac
+python -m pip install -e ".[dev,server,docs]"
 ```
 
-The application will be started on <http://localhost:8080>.
-
-By default, the apps are run with uvicorn hot-reloading enabled. This can be turned off by changing the value
-of the `RELOAD` env var in docker-compose.yml to `false`.
-
-### nginx proxy
-
-This repo includes an example nginx proxy service.
-To start:
-
-```shell
-make docker-run-nginx-proxy
-```
-
-The proxy will be started on <http://localhost>, with the pgstac app available at <http://localhost/api/v1/pgstac/> and the sqlalchemy app at <http://localhost/api/v1/sqlalchemy/>.
-If you need to customize the proxy port, use the `STAC_FASTAPI_NGINX_PORT` environment variable:
-
-```shell
-STAC_FASTAPI_NGINX_PORT=7822 make docker-run-nginx-proxy
-```
-
-### Note to Docker for Windows users
-
-You'll need to enable experimental features on Docker for Windows in order to run the docker-compose,
-due to the "--platform" flag that is required to allow the project to run on some Apple architectures.
-To do this, open Docker Desktop, go to settings, select "Docker Engine", and modify the configuration
-JSON to have `"experimental": true`.
-
-### Testing
-
-Before running the tests, ensure the database and apps run with docker-compose are down:
-
-```shell
-docker-compose down
-```
-
-The database container provided by the docker-compose stack must be running. This can be started with:
-
-```shell
-make run-database
-```
-
-To run tests for both the pgstac and sqlalchemy backends, execute:
+To test:
 
 ```shell
 make test
 ```
 
-To only run pgstac backend tests:
+Use Github [Pull Requests](https://github.com/stac-utils/stac-fastapi-pgstac/pulls) to provide new features or to request review of draft code, and use [Issues](https://github.com/stac-utils/stac-fastapi-pgstac/issues) to report bugs or request new features.
+
+### Documentation
+
+To build the docs:
 
 ```shell
-make test-pgstac
+make docs
 ```
 
-To only run sqlalchemy backend tests:
+Then, serve the docs via a local HTTP server:
 
 ```shell
-make test-sqlalchemy
+mkdocs serve
 ```
 
-Run individual tests by running pytest within a docker container:
+## History
 
-```shell
-make docker-shell-pgstac # or docker-shell-sqlalchemy
-$ pip install -e stac_fastapi/pgstac[dev]
-$ pytest -v stac_fastapi/pgstac/tests/api/test_api.py 
-```
+**stac-fastapi-pgstac** was initially added to **stac-fastapi** by [developmentseed](https://github.com/developmentseed).
+In April of 2023, it was removed from the core **stac-fastapi** repository and moved to its current location (<http://github.com/stac-utils/stac-fastapi-pgstac>).
+
+## License
+
+[MIT](https://github.com/stac-utils/stac-fastapi-pgstac/blob/main/LICENSE)
+
+<!-- markdownlint-disable-file MD033 -->
